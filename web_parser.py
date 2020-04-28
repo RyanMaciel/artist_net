@@ -2,27 +2,67 @@ import urllib.request, urllib.error, urllib.parse
 import string
 import time
 import os
+import sys
+import getopt
 from bs4 import BeautifulSoup, NavigableString
 
 data_path = 'web_data/'
+painters_path = data_path + 'painters/'
+painters_list_path = painters_path + 'lists/'
+painters_names_path = painters_path + 'names/'
 
-def get_html_files():
-    for s in string.ascii_uppercase:
-        url = 'https://en.wikipedia.org/wiki/List_of_painters_by_name_beginning_with_%22' + s +'%22'
+def build_directory_tree():
+    for path in [data_path, painters_path, painters_list_path, painters_names_path]:
+        if not os.path.isdir(path):
+            os.mkdir(path)
+
+
+# given a percentage, print a progress bar
+def print_progress(percentage):
+    num_slices = 20
+
+    num_done = int(percentage * num_slices)
+    right_pad = num_slices - num_done
+
+    print('[' + ('#' * num_done) + (' ' * right_pad) + '] ' + str(int(percentage * 100)) + '%', end='\r')
+
+    if int(percentage) == 1:
+        print('\n')
+
+
+# takes an array of urls and an optional array of names
+# and downloads the pages with corresponding names (just the url name if not provided)
+def get_html_files(urls, names=None, path=''):
+
+    for url_index in range(len(urls)):
+        url = urls[url_index]
         response = urllib.request.urlopen(url)
         web_content = response.read()
         decoded_html = web_content.decode('utf-8')
-        html_file= open(data_path + 'painters_' + s + '.html','w')
+
+        name = url
+        if names:
+            name = names[url_index]
+
+        html_file= open(path + name + '.html','w')
         html_file.write(decoded_html)
         html_file.close()
-        time.sleep(10)
-        print('Retrieved painters beginning with: ' + s)
 
-if len(os.listdir(path=data_path)) == 0:
-    print('html data not found, requesting now')
-    get_html_files()
-else:
-    print('html data already loaded')
+        print_progress((url_index+1)/len(urls))
+
+        # sleep for 7 seconds, not trying to get kicked off wikipedia.
+        time.sleep(7)
+
+# request painter list files
+def populate_painter_list_files(path):
+    print('downloading painter list files')
+    urls = []
+    names = []
+    for s in string.ascii_uppercase:
+        urls.append('https://en.wikipedia.org/wiki/List_of_painters_by_name_beginning_with_%22' + s +'%22')
+        names.append('painters_' + s + '.html')
+    get_html_files(urls, names=names, path=path)
+
 
 
 # Parse the html file for a single artist letter name.
@@ -73,26 +113,42 @@ def parse_html(html_string):
                 })
     return file_artists
 
-total_artists = []
-for s in string.ascii_uppercase:
-    html_string = open(data_path + 'painters_' + s + '.html', 'r').read()
-    total_artists += parse_html(html_string)
-
-csv_string = 'name, desciption, artist_link, \n'
-for artist in total_artists:
-    # remove commas and deal with None values
-    name = artist['name'].replace(',', '') if artist['name'] else ''
-    description = artist['description'].replace(',', '') if artist['description'] else ''
-    artist_link = artist['artist_link'].replace(',', '') if artist['artist_link'] else ''
-
-    csv_string += name + ',' + description + ',' + artist_link + ',\n'
-
-csv_data = open(data_path + 'painter_data.csv','w')
-csv_data.write(csv_string)
-csv_data.close()
- 
-from pprint import pprint
+#def populate_painter_names(total_artists, path=''):
 
 
+def create_list_csv(total_artists):
+    csv_string = 'name, desciption, artist_link, \n'
+    for artist in total_artists:
+        # remove commas and deal with None values
+        name = artist['name'].replace(',', '') if artist['name'] else ''
+        description = artist['description'].replace(',', '') if artist['description'] else ''
+        artist_link = artist['artist_link'].replace(',', '') if artist['artist_link'] else ''
 
+        csv_string += name + ',' + description + ',' + artist_link + ',\n'
 
+    csv_data = open('painter_data.csv','w')
+    csv_data.write(csv_string)
+    csv_data.close()
+
+def main(argv):
+
+    download = False
+    if '--download' in argv or '--d'in argv:
+        download = True
+
+    build_directory_tree()
+
+    if download:
+        populate_painter_list_files(painters_list_path)
+
+    # get a {name, description, artist_link, associated_links} object for every artist
+    # in the painter's name entry.
+    # total_artists = []
+    # for s in string.ascii_uppercase:
+    #     html_string = open(painters_list_path + 'painters_' + s + '.html', 'r').read()
+    #     total_artists += parse_html(html_string)
+
+    #populate_painter_names(total_artists, path=painters_names_path)
+
+if __name__ == "__main__":
+   main(sys.argv[1:])
