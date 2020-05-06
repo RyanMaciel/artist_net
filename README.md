@@ -7,6 +7,6 @@ Written in Python 3.7 HTML parsing is done using BeautifulSoup4, which you can i
 `conda install -c anaconda beautifulsoup4`
 
 ## Usage
-`python web_parser.py --download`
+`python web_downloader.py --download`
 
 This will download 26 html files from wikipedia (one for each letter) and wait 7 seconds in between each one because I'm really not trying to get blocked from Wikipedia. Then it will output a csv file that takes some relevant data from the html. There should be about 3.4k rows right now.
