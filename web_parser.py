@@ -1,4 +1,6 @@
 import urllib.request, urllib.error, urllib.parse
+from urllib.error import HTTPError
+
 import string
 import time
 import os
@@ -32,26 +34,46 @@ def print_progress(percentage):
 
 # takes an array of urls and an optional array of names
 # and downloads the pages with corresponding names (just the url name if not provided)
-def get_html_files(urls, names=None, path=''):
-
+# the check exists flag will not download files that already exist if set to true.
+def get_html_files(urls, names=None, path='', check_exists=False):
+    
+    # keep track of the number we skipped from checking existence.
+    num_skipped = 0
     for url_index in range(len(urls)):
-        url = urls[url_index]
-        response = urllib.request.urlopen(url)
-        web_content = response.read()
-        decoded_html = web_content.decode('utf-8')
 
+        # generate save path.
+        url = urls[url_index]
         name = url
         if names:
             name = names[url_index]
+        full_path = path + name + '.html'
 
-        html_file= open(path + name + '.html','w')
-        html_file.write(decoded_html)
-        html_file.close()
+        # if the check exists flag is on, and it doesn't exist or if the check exists
+        # flag is off.
+        if (check_exists and not os.path.exists(full_path)) or not check_exists:
 
-        print_progress((url_index+1)/len(urls))
+            try:
+                # fetch from url
+                response = urllib.request.urlopen(url)
+                web_content = response.read()
+                decoded_html = web_content.decode('utf-8')
 
-        # sleep for 7 seconds, not trying to get kicked off wikipedia.
-        time.sleep(7)
+                # save
+                html_file= open(full_path,'w')
+                html_file.write(decoded_html)
+                html_file.close()
+            except HTTPError as err:
+                print('Error code: ' + str(err.code))
+                print('When processing url:' + url)
+
+            # log progress.
+            print_progress((url_index+1)/len(urls))
+
+            # sleep for 7 seconds, not trying to get kicked off wikipedia.
+            time.sleep(7)
+        else:
+            num_skipped += 1
+    print('Skipped ' + str(num_skipped) + ' entries while downloading.')
 
 # request painter list files
 def populate_painter_list_files(path):
@@ -60,7 +82,7 @@ def populate_painter_list_files(path):
     names = []
     for s in string.ascii_uppercase:
         urls.append('https://en.wikipedia.org/wiki/List_of_painters_by_name_beginning_with_%22' + s +'%22')
-        names.append('painters_' + s + '.html')
+        names.append('painters_' + s)
     get_html_files(urls, names=names, path=path)
 
 
@@ -80,7 +102,6 @@ def parse_html(html_string):
     file_artists = []
 
     soup = BeautifulSoup(html_string, 'html.parser')
-    container_result = soup.find_all('div', attrs={'class': 'mw-parser-output'})
     list_result = soup.find_all('ul')
     if len(list_result) > 0:
         # call str() on navigable strings to remove reference to soup object.
@@ -113,8 +134,15 @@ def parse_html(html_string):
                 })
     return file_artists
 
-#def populate_painter_names(total_artists, path=''):
-
+def populate_painter_names(total_artists, path='', check_exists=False):
+    urls = []
+    names = []
+    for artist_entry in total_artists:
+        link = artist_entry['artist_link']
+        if link:
+            urls.append('https://www.wikipedia.com' + link)
+            names.append(artist_entry['name'])
+    get_html_files(urls, names, path, check_exists)
 
 def create_list_csv(total_artists):
     csv_string = 'name, desciption, artist_link, \n'
@@ -141,14 +169,14 @@ def main(argv):
     if download:
         populate_painter_list_files(painters_list_path)
 
-    # get a {name, description, artist_link, associated_links} object for every artist
+    #get a {name, description, artist_link, associated_links} object for every artist
     # in the painter's name entry.
-    # total_artists = []
-    # for s in string.ascii_uppercase:
-    #     html_string = open(painters_list_path + 'painters_' + s + '.html', 'r').read()
-    #     total_artists += parse_html(html_string)
+    total_artists = []
+    for s in string.ascii_uppercase:
+        html_string = open(painters_list_path + 'painters_' + s + '.html', 'r').read()
+        total_artists += parse_html(html_string)
 
-    #populate_painter_names(total_artists, path=painters_names_path)
+    populate_painter_names(total_artists, path=painters_names_path, check_exists=True)
 
 if __name__ == "__main__":
    main(sys.argv[1:])
