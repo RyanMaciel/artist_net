@@ -12,3 +12,5 @@ Thumbs.db
 
 web_data/**
 
+# for local testing.
+data.json
