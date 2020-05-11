@@ -77,31 +77,66 @@ def parse_artist_page(html_string):
     #     if link.parent.name != 'sup':
     #         print(link.get_text())
 
-    
-    
 
-def main(argv):
-    artist_pages = os.listdir(painters_names_path)
-    
-    # html_string = open(painters_names_path + artist_pages[8], 'r').read()
-    pp = pprint.PrettyPrinter(depth=4)
-
+# read from all of the artist pages and generate json data about them.
+# curently, this data is:
+# {
+#   'Artist_Name': {
+#       'infobox_key': 'infobox_value'
+#   }
+# }
+# Where infobox is the wikipedia right hand side thing
+def generate_artist_json(save_path='data.json', save_freq=100):
     infobox_results = {}
 
-    # for i in range(len(artist_pages)):
-    #     name = artist_pages[i].replace('.html', '')
-    #     html_string = open(painters_names_path + artist_pages[i], 'r').read()
-    #     infobox_results[name] = parse_artist_page(html_string)
+    artist_pages = os.listdir(painters_names_path)
+    for i in range(len(artist_pages)):
+        name = artist_pages[i].replace('.html', '')
+        html_string = open(painters_names_path + artist_pages[i], 'r').read()
+        infobox_results[name] = parse_artist_page(html_string)
 
-    #     if i % 100 == 0:
-    #         with open('data.json', 'w') as outfile:
-    #             json.dump(infobox_results, outfile)
+        if i % save_freq == 0:
+            with open(save_path, 'w') as outfile:
+                json.dump(infobox_results, outfile)
         
-    #     print_progress(i/len(artist_pages))
+        print_progress(i/len(artist_pages))
+    
+    return infobox_results
+    
+
+def output_csv_from_json(data):
+    csv_string = 'artist_name, movement1, movement2, movement3, movement4, movement5,\n'
+
+    for artist_name in data:
+        entry = data[artist_name]
+        if entry != None and 'Movement' in entry:
+            csv_string += artist_name+','
+            movement_list = entry['Movement']
+            num = 0
+            for movement in movement_list:
+                csv_string += movement + ','
+                num+=1
+            csv_string += ','*(5-num)
+        csv_string += '\n'
+    
+    csv_data = open('data.csv','w')
+    csv_data.write(csv_string)
+
+def main(argv):
+    
+    pp = pprint.PrettyPrinter(depth=4)
+
+
+    #generate_artist_json(save_path='data.json')
+
 
     data_string = open('data.json', 'r').read()
     data = json.loads(data_string)
-    
+    #output_csv_from_json(json.loads(data_string))
+
+
+    # Create a dictionary of movement names and # of occurences.
+    # Useful for debugging data quality for right now.
     movements = {}
     for artist_name in data:
         item = data[artist_name]

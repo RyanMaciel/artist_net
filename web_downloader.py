@@ -160,22 +160,25 @@ def create_list_csv(total_artists):
 def main(argv):
 
     download = False
+    list_only = False
     if '--download' in argv or '--d'in argv:
         download = True
-
+    if '--list-only' in argv:
+        list_only = True
     build_directory_tree()
 
     if download:
         populate_painter_list_files(painters_list_path)
 
-    #get a {name, description, artist_link, associated_links} object for every artist
-    # in the painter's name entry.
-    total_artists = []
-    for s in string.ascii_uppercase:
-        html_string = open(painters_list_path + 'painters_' + s + '.html', 'r').read()
-        total_artists += parse_html(html_string)
+        if not list_only:
+            #get a {name, description, artist_link, associated_links} object for every artist
+            # in the painter's name entry.
+            total_artists = []
+            for s in string.ascii_uppercase:
+                html_string = open(painters_list_path + 'painters_' + s + '.html', 'r').read()
+                total_artists += parse_html(html_string)
 
-    populate_painter_names(total_artists, path=painters_names_path, check_exists=True)
+            populate_painter_names(total_artists, path=painters_names_path, check_exists=True)
 
 if __name__ == "__main__":
    main(sys.argv[1:])
