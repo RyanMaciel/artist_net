@@ -1,6 +1,8 @@
 import sys
 import os
 import json
+import re
+import urllib.parse
 from bs4 import BeautifulSoup, NavigableString
 import pprint
 
@@ -22,6 +24,62 @@ def print_progress(percentage):
     if int(percentage) == 1:
         print('\n')
 
+
+# Given a (Beautiful Soup) row from the infobox
+# parse out the movements (a list of strings)
+def get_movements_from_row(row):
+    movement_list = []
+
+    # find all linked movements
+    # TODO: sometimes links to the same movement have different labels.
+    # This could be a relatively easy fix.
+    movement_links = row.find_all('a')
+    for movement in movement_links:
+        if movement.parent.name != 'sup':
+            # get the 'cleaned' relative link. Decode html encoding, remove /wiki/ and _
+            rel_link = urllib.parse.unquote(movement['href'].replace('/wiki/', '')).replace('_', ' ')
+            
+            # remove items in parentheses, strip and lowercase
+            rel_link = re.sub(r'\(.+\)', '', rel_link).strip().lower().replace('\xa0', ' ')
+
+            movement_list.append(rel_link)
+    
+    # try to make sense of the raw text
+
+    # All text at the row level (ie. not in <a></a> or otherwise)
+    unlinked_results = row.find_all(text=True, recursive=False)
+    for result in unlinked_results:
+        result = result.lower().replace('\xa0', ' ')
+        # don't want one of these common separation words.
+        # Iteratively split result by each of them.
+        sep_words = ['to', 'and', 'or', 'of', 'founder', 'also']
+        sep_punc = ['/', ',', ';', '(', ')']
+        sep_split_words = [result]
+        
+        # deal with word separators
+        for sep in sep_words:
+            temp_sep_split = []
+            for w in sep_split_words:
+                # when we do word separators, make sure they are not surrounded by
+                # letters. ie. Don't split 'sculptor' on 'to'
+                temp_sep_split += re.split(r'\b{sep}\b', w)
+            sep_split_words = temp_sep_split
+
+        # deal with punctuation separators
+        for sepp in sep_punc:
+            temp_sep_split = []
+            for w in sep_split_words:
+                temp_sep_split += w.split(sepp)
+            sep_split_words = temp_sep_split
+                    
+        for w in sep_split_words:
+            w = w.strip()
+            if len(w) != 0:
+                movement_list.append(w)
+
+    return movement_list
+
+# Parse the artist page from the html
 def parse_artist_page(html_string):
 
     soup = BeautifulSoup(html_string, 'html.parser')
@@ -42,27 +100,9 @@ def parse_artist_page(html_string):
                 # this is difficult because sometimes movements are linked,
                 # and sometimes they are just listed (with different formats lol)
                 if key_html.text == 'Movement':
-
-                    movement_list = []
-
-                    # find all linked movements
-                    # TODO: sometimes links to the same movement have different labels.
-                    # This could be a relatively easy fix.
-                    movement_links = value_html.find_all('a')
-                    for movement in movement_links:
-                        if movement.parent.name != 'sup':
-                            movement_list.append(movement.text.replace('\xa0', ' '))
                     
-                    # try to make sense of the raw text
-                    unlinked_results = value_html.find_all(text=True, recursive=False)
-                    for result in unlinked_results:
-
-                        # don't want one of these common separation words.
-                        if result.strip() not in ['/', 'to', 'and', ',']:
-                            sub_movements = result.strip().replace('\xa0', ' ').split(',')
-                            for sub in sub_movements:
-                                movement_list.append(sub)
-                    attributes[key_html.text.replace('\xa0', ' ')] = movement_list
+                    # parse out movements
+                    attributes[key_html.text.replace('\xa0', ' ')] = get_movements_from_row(value_html)
                 else:
                     # TODO deal with unicode issues. You might have to deal with langauge issues which will
                     # take you all the way back to the downloader which might not be fun...   
@@ -86,7 +126,7 @@ def parse_artist_page(html_string):
 #   }
 # }
 # Where infobox is the wikipedia right hand side thing
-def generate_artist_json(save_path='data.json', save_freq=100):
+def generate_artist_json(save_path='data.json', save_freq=300):
     infobox_results = {}
 
     artist_pages = os.listdir(painters_names_path)
@@ -95,12 +135,17 @@ def generate_artist_json(save_path='data.json', save_freq=100):
         html_string = open(painters_names_path + artist_pages[i], 'r').read()
         infobox_results[name] = parse_artist_page(html_string)
 
+        # interstatial save (this loop takes a few minutes on my laptop.)
         if i % save_freq == 0:
             with open(save_path, 'w') as outfile:
                 json.dump(infobox_results, outfile)
         
         print_progress(i/len(artist_pages))
-    
+
+    # save the last few
+    with open(save_path, 'w') as outfile:
+        json.dump(infobox_results, outfile)
+
     return infobox_results
     
 
@@ -117,7 +162,7 @@ def output_csv_from_json(data):
                 csv_string += movement + ','
                 num+=1
             csv_string += ','*(5-num)
-        csv_string += '\n'
+            csv_string += '\n'
     
     csv_data = open('data.csv','w')
     csv_data.write(csv_string)
@@ -127,12 +172,12 @@ def main(argv):
     pp = pprint.PrettyPrinter(depth=4)
 
 
-    #generate_artist_json(save_path='data.json')
+    generate_artist_json(save_path='data.json')
 
 
     data_string = open('data.json', 'r').read()
     data = json.loads(data_string)
-    #output_csv_from_json(json.loads(data_string))
+    output_csv_from_json(json.loads(data_string))
 
 
     # Create a dictionary of movement names and # of occurences.
