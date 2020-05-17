@@ -9,8 +9,8 @@ function process_json(data) {
     let links = []
     for(const artistName in data) {
         if(data[artistName] && data[artistName].Movement){
-            artistNodes.push({id: artistName});
             movements = data[artistName].Movement;
+            artistNodes.push({id: artistName});
             movements.forEach((movement)=>{
                 links.push({source: artistName, target: movement})
                 if(extractedMovements[movement]){
@@ -40,13 +40,18 @@ const svg = d3.select("body")
     .attr("width", width)
     .attr("height", height)
 
-function zoomed() {
-    svg.attr("transform", d3.event.transform);
-}
-svg.call(d3.zoom()
-    .extent([[0, 0], [width, height]])
-    .scaleExtent([1, 8])
-    .on("zoom", zoomed));
+svg.append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("fill", "white")
+    .call(d3.zoom().on("zoom", function () {
+        svgContainter.attr("transform", d3.event.transform)
+    }));
+const svgContainter = svg.append("g");
+
+
+    
+
 
 // Set up simulation
 const simulation = d3.forceSimulation(totalNodes)
@@ -55,7 +60,7 @@ const simulation = d3.forceSimulation(totalNodes)
     .force('center', d3.forceCenter(width / 2, height / 2))
 
 // Set up links
-const link = svg.append("g")
+const link = svgContainter.append("g")
         .attr("stroke", "#999")
         .attr("stroke-opacity", 0.6)
     .selectAll("line")
@@ -64,7 +69,7 @@ const link = svg.append("g")
         .attr("stroke-width", 1);
 
 // Set up nodes
-const node = svg.append("g")
+const node = svgContainter.append("g")
         .attr("stroke", "#fff")
         .attr("stroke-width", 1.5)
     .selectAll("g")
