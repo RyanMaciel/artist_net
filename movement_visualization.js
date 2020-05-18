@@ -1,6 +1,11 @@
 let data = JSON.parse(dataString);
 
-function process_json(data) {
+// Updated the info box when a node is clicked.
+function handleSelection(selectedData){
+    document.getElementById("header").textContent=selectedData;
+}
+
+function processJSON(data) {
     // Construct this object which will be of form:
     // {'MovementName': ['artist1', 'artist2', ...], ...}
     let extractedMovements = {};
@@ -29,7 +34,7 @@ function process_json(data) {
     return {totalNodes, links}
 }
 
-const {totalNodes, links} = process_json(data);
+const {totalNodes, links} = processJSON(data);
 
 
 const width = window.innerWidth
@@ -77,6 +82,10 @@ const node = svgContainter.append("g")
     .join("g") // g here because we want a label/flexible display, not just a circle.
         .attr("class", "node")
         .attr("transform", "translate(" + d3.randomInt(width), + "," + d3.randomInt(height) + ")")
+        .on("click", (datum)=>{
+            console.log(datum.id)
+            handleSelection(datum.id)
+        });
 
 node.append("circle")
     .attr("r", 5)
