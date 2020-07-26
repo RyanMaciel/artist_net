@@ -5,6 +5,7 @@ import time
 import os
 import sys
 import getopt
+import json
 from bs4 import BeautifulSoup, NavigableString
 
 data_path = 'web_data/'
@@ -55,7 +56,7 @@ def get_html_files(urls, names=None, path='', check_exists=False):
                 # fetch from url
                 response = urllib.request.urlopen(url)
                 web_content = response.read()
-                decoded_html = web_content.decode('utf-8')
+                decoded_html = web_content.decode('utf-8', 'ignore')
 
                 # save
                 html_file= open(full_path,'w')
@@ -177,6 +178,9 @@ def main(argv):
             for s in string.ascii_uppercase:
                 html_string = open(painters_list_path + 'painters_' + s + '.html', 'r').read()
                 total_artists += parse_html(html_string)
+            
+            with open('artist_list_file.json', 'w') as fp:
+                json.dump(total_artists, fp)
 
             populate_painter_names(total_artists, path=painters_names_path, check_exists=True)
 

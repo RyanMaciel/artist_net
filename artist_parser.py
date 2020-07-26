@@ -6,7 +6,6 @@ import urllib.parse
 from bs4 import BeautifulSoup, NavigableString
 import pprint
 
-
 data_path = 'web_data/'
 painters_path = data_path + 'painters/'
 painters_list_path = painters_path + 'lists/'
@@ -31,8 +30,6 @@ def get_movements_from_row(row):
     movement_list = []
 
     # find all linked movements
-    # TODO: sometimes links to the same movement have different labels.
-    # This could be a relatively easy fix.
     movement_links = row.find_all('a')
     for movement in movement_links:
         if movement.parent.name != 'sup':
@@ -126,21 +123,41 @@ def parse_artist_page(html_string):
 #   }
 # }
 # Where infobox is the wikipedia right hand side thing
-def generate_artist_json(save_path='data.json', save_freq=300):
+# artist_metadata (from web_downloader.py): 
+#   {
+#        name: <String or None if there is no link associated with the artist>
+#        description: <String: brief description of the artist from the list page>
+#        artist_link: <String: relative link to artist wiki>
+#        associated_links: [<String: relative link to any links in the descriptions>, ...]
+#   },  
+def generate_artist_json(save_path='data.json', artist_metadata=[], save_freq=300):
     infobox_results = {}
 
-    artist_pages = os.listdir(painters_names_path)
-    for i in range(len(artist_pages)):
-        name = artist_pages[i].replace('.html', '')
-        html_string = open(painters_names_path + artist_pages[i], 'r').read()
-        infobox_results[name] = parse_artist_page(html_string)
+    for i in range(len(artist_metadata)):
+        name = artist_metadata[i]['name']
+        try:
+            with open(painters_names_path + name + '.html', 'r') as raw_file:
+                html_string = raw_file.read()
+                final_data = parse_artist_page(html_string)
+                
+                # TODO: This step is going to throw out a lot of artists that
+                # we aren't able to parse well right now (ones that don't have
+                # info boxes)
+                if final_data:
+                    # attach the link from the metadata to the parsed data.
+                    final_data['artist_link'] = artist_metadata[i]['artist_link']
+                    infobox_results[name] = final_data
 
-        # interstatial save (this loop takes a few minutes on my laptop.)
-        if i % save_freq == 0:
-            with open(save_path, 'w') as outfile:
-                json.dump(infobox_results, outfile)
-        
-        print_progress(i/len(artist_pages))
+                    # interstatial save (this loop takes a few minutes on my laptop.)
+                    if i % save_freq == 0:
+                        with open(save_path, 'w') as outfile:
+                            json.dump(infobox_results, outfile)
+                    
+                print_progress(i/len(artist_metadata))
+        except Exception as e:
+            print('An error occured on opening ' + name + '\'s html file.')
+            print(e)
+            print('\n')
 
     # save the last few
     with open(save_path, 'w') as outfile:
@@ -171,13 +188,15 @@ def main(argv):
     
     pp = pprint.PrettyPrinter(depth=4)
 
+    # Get the data file from web_downloader.py.
+    with open('artist_list_file.json', 'r') as list_json_file:
+        list_json = json.load(list_json_file)
+        generate_artist_json(save_path='artist_data.json', artist_metadata=list_json)
 
-    generate_artist_json(save_path='data.json')
 
-
-    data_string = open('data.json', 'r').read()
-    data = json.loads(data_string)
-    output_csv_from_json(json.loads(data_string))
+    # data_string = open('data.json', 'r').read()
+    # data = json.loads(data_string)
+    # output_csv_from_json(json.loads(data_string))
 
 
     # Create a dictionary of movement names and # of occurences.
@@ -192,7 +211,7 @@ def main(argv):
                     movements[movement] = 1
                 else: 
                     movements[movement] += 1
-    
+
     from collections import OrderedDict
     sort_movements = OrderedDict(sorted(movements.items(), key=lambda a: a[1], reverse=True))
     pp.pprint(sort_movements)

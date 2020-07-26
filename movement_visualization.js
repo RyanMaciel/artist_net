@@ -2,7 +2,7 @@ let data = JSON.parse(dataString);
 
 // Updated the info box when a node is clicked.
 function handleSelection(selectedData){
-    document.getElementById("header").textContent=selectedData;
+    document.getElementById("header").textContent=selectedData.id;
 }
 
 function processJSON(data) {
@@ -15,7 +15,7 @@ function processJSON(data) {
     for(const artistName in data) {
         if(data[artistName] && data[artistName].Movement){
             movements = data[artistName].Movement;
-            artistNodes.push({id: artistName});
+            artistNodes.push({id: artistName, link: data[artistName].link});
             movements.forEach((movement)=>{
                 links.push({source: artistName, target: movement})
                 if(extractedMovements[movement]){
@@ -84,7 +84,7 @@ const node = svgContainter.append("g")
         .attr("transform", "translate(" + d3.randomInt(width), + "," + d3.randomInt(height) + ")")
         .on("click", (datum)=>{
             console.log(datum.id)
-            handleSelection(datum.id)
+            handleSelection(datum)
         });
 
 node.append("circle")
