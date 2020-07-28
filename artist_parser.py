@@ -187,34 +187,60 @@ def output_csv_from_json(data):
 def main(argv):
     
     pp = pprint.PrettyPrinter(depth=4)
+    PARSE_DATA_SAVE_PATH = 'artist_data.json'
+
+    # handle flags.
+    js_output = False
+    csv = False
+    no_parse = False
+    if '--csv' in argv:
+        csv = True
+    if '--js-output' in argv:
+        js_output = True
+    if '--no-parse' in argv:
+        no_parse = True
+    
+    # In order for the JS to use the data, we want to write it to a js file
+    # that has a single variable, dataString which is just a json string to be
+    # parsed. This is absolutely not best practice, but good enough.
+    if js_output:
+        with open(PARSE_DATA_SAVE_PATH, 'r') as list_json_file:
+            list_json = json.load(list_json_file)
+            stringified = json.dumps(list_json)
+
+            # escape ' \n \r and \" (to \\"" https://stackoverflow.com/questions/24559625/javascript-escape-double-quotes)
+            stringified = stringified.replace("'", "\\'").replace('\\r', '').replace('\\n', '').replace('\\"', '\\\\"')
+            js_string = "let dataString='" + stringified + "'" # AH! Very scary js in python
+            with open("data.js", "w") as js_output:
+                js_output.write(js_string)
 
     # Get the data file from web_downloader.py.
-    with open('artist_list_file.json', 'r') as list_json_file:
-        list_json = json.load(list_json_file)
-        generate_artist_json(save_path='artist_data.json', artist_metadata=list_json)
+    if not no_parse:
+        with open('artist_list_file.json', 'r') as list_json_file:
+            list_json = json.load(list_json_file)
+            parsed_data = generate_artist_json(save_path=PARSE_DATA_SAVE_PATH, artist_metadata=list_json)
 
+            if csv:
+                data_string = open(PARSE_DATA_SAVE_PATH, 'r').read()
+                data = json.loads(data_string)
+                output_csv_from_json(json.loads(data_string))
 
-    # data_string = open('data.json', 'r').read()
-    # data = json.loads(data_string)
-    # output_csv_from_json(json.loads(data_string))
+            # Create a dictionary of movement names and # of occurences.
+            # Useful for debugging data quality for right now.
+            movements = {}
+            for artist_name in parsed_data:
+                item = parsed_data[artist_name]
+                if item != None and 'Movement' in item:
+                    movement_list = item['Movement']
+                    for movement in movement_list:
+                        if movement not in movements:
+                            movements[movement] = 1
+                        else: 
+                            movements[movement] += 1
 
-
-    # Create a dictionary of movement names and # of occurences.
-    # Useful for debugging data quality for right now.
-    movements = {}
-    for artist_name in data:
-        item = data[artist_name]
-        if item != None and 'Movement' in item:
-            movement_list = item['Movement']
-            for movement in movement_list:
-                if movement not in movements:
-                    movements[movement] = 1
-                else: 
-                    movements[movement] += 1
-
-    from collections import OrderedDict
-    sort_movements = OrderedDict(sorted(movements.items(), key=lambda a: a[1], reverse=True))
-    pp.pprint(sort_movements)
+            from collections import OrderedDict
+            sort_movements = OrderedDict(sorted(movements.items(), key=lambda a: a[1], reverse=True))
+            pp.pprint(sort_movements)
 
 
 if __name__ == "__main__":

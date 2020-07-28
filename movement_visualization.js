@@ -1,8 +1,11 @@
 let data = JSON.parse(dataString);
-
+console.log(data)
 // Updated the info box when a node is clicked.
 function handleSelection(selectedData){
     document.getElementById("header").textContent=selectedData.id;
+    const artistLinkDOM = document.getElementById("link");
+    artistLinkDOM.textContent=selectedData.link;
+    artistLinkDOM.href=`https://www.wikipedia.com${selectedData.link}`;
 }
 
 function processJSON(data) {
@@ -15,7 +18,7 @@ function processJSON(data) {
     for(const artistName in data) {
         if(data[artistName] && data[artistName].Movement){
             movements = data[artistName].Movement;
-            artistNodes.push({id: artistName, link: data[artistName].link});
+            artistNodes.push({id: artistName, link: data[artistName].artist_link});
             movements.forEach((movement)=>{
                 links.push({source: artistName, target: movement})
                 if(extractedMovements[movement]){
@@ -110,10 +113,5 @@ simulation.on("tick", () => {
     node
         .attr("transform", d => "translate(" + d.x + "," + d.y + ")");
 });
-
-invalidation.then(() => simulation.stop());
-
-
-
 
 svg.node();
