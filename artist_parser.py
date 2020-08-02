@@ -10,6 +10,7 @@ data_path = 'web_data/'
 painters_path = data_path + 'painters/'
 painters_list_path = painters_path + 'lists/'
 painters_names_path = painters_path + 'names/'
+movements_list_path = 'movements.txt'
 
 # given a percentage, print a progress bar
 def print_progress(percentage):
@@ -23,6 +24,20 @@ def print_progress(percentage):
     if int(percentage) == 1:
         print('\n')
 
+
+# Given the document body (soup object), get all of the links to
+# movements by matching with the movements_list param.
+def get_movements_from_all_links(doc_body, movement_list):
+
+    # open the movements_list_path. We expect this to be a list of
+    # movements that correspond to wikipedia relative links
+    result_movements = []
+    all_links = doc_body.find_all(href=True)
+    for link in all_links:
+        clean_link = urllib.parse.unquote(link['href'].replace('/wiki/', '')).replace('_', ' ').lower()
+        if clean_link in movement_list:
+            result_movements.append(clean_link)
+    return result_movements
 
 # Given a (Beautiful Soup) row from the infobox
 # parse out the movements (a list of strings)
@@ -76,17 +91,22 @@ def get_movements_from_row(row):
 
     return movement_list
 
-# Parse the artist page from the html
-def parse_artist_page(html_string):
+# Parse the artist page from the html, looking for movements
+# in movement_list
+def parse_artist_page(html_string, movement_list):
 
     soup = BeautifulSoup(html_string, 'html.parser')
+    # get main text content
+    content = soup.find('div', id='mw-content-text')
+    attributes = {}
+    linked_movements = get_movements_from_all_links(content, movement_list)
+    attributes['Movement'] = linked_movements
 
     # parse infobox
     table = soup.find('table', 'infobox')
     if table:
         table_rows = table.find_all('tr')
 
-        attributes = {}
         for tr in table_rows:
             key_html = tr.find('th')
             value_html = tr.find('td')
@@ -98,21 +118,19 @@ def parse_artist_page(html_string):
                 # and sometimes they are just listed (with different formats lol)
                 if key_html.text == 'Movement':
                     
-                    # parse out movements
-                    attributes[key_html.text.replace('\xa0', ' ')] = get_movements_from_row(value_html)
+                    # parse out movements (expect there are some from the main body of the text already)
+                    current_movements = attributes['Movement']
+                    current_movements += get_movements_from_row(value_html)
+                    attributes['Movement'] = current_movements
                 else:
                     # TODO deal with unicode issues. You might have to deal with langauge issues which will
                     # take you all the way back to the downloader which might not be fun...   
                     attributes[key_html.text.replace('\xa0', ' ')] = value_html.text.replace('\xa0', ' ')
         
-        return attributes
+    return attributes
 
-    # get all links
-    # content = soup.find('div', id='mw-content-text')
-    # all_links = content.find_all('a')
-    # for link in all_links:
-    #     if link.parent.name != 'sup':
-    #         print(link.get_text())
+    
+    
 
 
 # read from all of the artist pages and generate json data about them.
@@ -133,31 +151,35 @@ def parse_artist_page(html_string):
 def generate_artist_json(save_path='data.json', artist_metadata=[], save_freq=300):
     infobox_results = {}
 
-    for i in range(len(artist_metadata)):
-        name = artist_metadata[i]['name']
-        try:
-            with open(painters_names_path + name + '.html', 'r') as raw_file:
-                html_string = raw_file.read()
-                final_data = parse_artist_page(html_string)
-                
-                # TODO: This step is going to throw out a lot of artists that
-                # we aren't able to parse well right now (ones that don't have
-                # info boxes)
-                if final_data:
-                    # attach the link from the metadata to the parsed data.
-                    final_data['artist_link'] = artist_metadata[i]['artist_link']
-                    infobox_results[name] = final_data
+    # get the list of movements we want to recognize.
+    with open(movements_list_path) as movement_list_file:
+        movements = [line.rstrip('\n').lower() for line in movement_list_file]
 
-                    # interstatial save (this loop takes a few minutes on my laptop.)
-                    if i % save_freq == 0:
-                        with open(save_path, 'w') as outfile:
-                            json.dump(infobox_results, outfile)
+        for i in range(len(artist_metadata)):
+            name = artist_metadata[i]['name']
+            try:
+                with open(painters_names_path + name + '.html', 'r') as raw_file:
+                    html_string = raw_file.read()
+                    final_data = parse_artist_page(html_string, movements)
                     
-                print_progress(i/len(artist_metadata))
-        except Exception as e:
-            print('An error occured on opening ' + name + '\'s html file.')
-            print(e)
-            print('\n')
+                    # TODO: This step is going to throw out a lot of artists that
+                    # we aren't able to parse well right now (ones that don't have
+                    # info boxes)
+                    if final_data and len(final_data['Movements']) > 0:
+                        # attach the link from the metadata to the parsed data.
+                        final_data['artist_link'] = artist_metadata[i]['artist_link']
+                        infobox_results[name] = final_data
+
+                        # interstatial save (this loop takes a few minutes on my laptop.)
+                        if i % save_freq == 0:
+                            with open(save_path, 'w') as outfile:
+                                json.dump(infobox_results, outfile)
+                        
+                    print_progress(i/len(artist_metadata))
+            except Exception as e:
+                print('An error occured on opening ' + name + '\'s html file.')
+                print(e)
+                print('\n')
 
     # save the last few
     with open(save_path, 'w') as outfile:
