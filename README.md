@@ -13,3 +13,4 @@ This will download 26 html files from wikipedia (one for each letter) and wait 7
 
 `python web_downloader.py --download --list-only`
 
+## Created by Lauren Sigda and Ryan Maciel
